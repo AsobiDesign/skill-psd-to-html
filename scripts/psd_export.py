@@ -26,11 +26,17 @@ import sys
 from psd_tools import PSDImage
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from psd_inspect import can_draw_in_css, find_screens, shape_style  # noqa: E402
+from psd_inspect import (can_draw_in_css, find_screens,  # noqa: E402
+                         shape_style, use_utf8_stdout)
 
 # Windowsで使えない文字を落とす。macOSだけを見て `:` などを残すと、
 # 成果物をWindowsに渡した瞬間に壊れるので最初から共通の安全側に寄せる。
 UNSAFE = re.compile(r'[\\/:*?"<>|\x00-\x1f]')
+
+# Windowsが装置名として予約している名前。拡張子を付けてもファイルを作れない。
+WIN_RESERVED = {"con", "prn", "aux", "nul",
+                *(f"com{i}" for i in range(1, 10)),
+                *(f"lpt{i}" for i in range(1, 10))}
 
 
 def safe_name(name, fallback="layer"):
@@ -40,7 +46,9 @@ def safe_name(name, fallback="layer"):
     text = re.sub(r"\.(png|jpe?g|gif|svg|psd|ai|webp|tiff?)$", "", text, flags=re.I)
     text = re.sub(r"\s+", "-", text)
     text = re.sub(r"-{2,}", "-", text)
-    return text[:80] or fallback
+    text = text[:80] or fallback
+    # 'con' のようなレイヤー名は con.png すら作れないので末尾を足して逃がす
+    return text + "_" if text.lower() in WIN_RESERVED else text
 
 
 def save(image, path, quiet=False):
@@ -287,6 +295,7 @@ def list_layers(screens):
 
 
 def main():
+    use_utf8_stdout()
     parser = argparse.ArgumentParser(description="PSDから画像を書き出す")
     parser.add_argument("psd")
     parser.add_argument("-o", "--outdir", default="assets", help="出力先ディレクトリ")
